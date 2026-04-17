@@ -179,7 +179,7 @@
         <!-- Charts Main View -->
         <div class="lg:col-span-9 space-y-6">
             <!-- Run Chart -->
-            <div class="glass-card p-4 min-h-[550px] flex flex-col">
+            <div class="glass-card p-4 min-h-[500px] flex flex-col">
                 <div class="flex justify-between items-center mb-2 px-2">
                     <h3 class="text-sm font-medium text-slate-400 uppercase tracking-widest">Temporal Thickness Analysis</h3>
                     <div class="flex gap-2">
@@ -191,10 +191,18 @@
                 <div id="mainChart" class="w-full flex-grow"></div>
             </div>
             
-            <!-- Frequency Chart -->
-            <div class="glass-card p-4 min-h-[400px] flex flex-col">
-                <h3 class="text-sm font-medium text-slate-400 uppercase tracking-widest mb-2 px-2 text-center">Value Concentration Histogram</h3>
-                <div id="freqChart" class="w-full flex-grow"></div>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <!-- Frequency Chart -->
+                <div class="glass-card p-4 min-h-[350px] flex flex-col">
+                    <h3 class="text-sm font-medium text-slate-400 uppercase tracking-widest mb-2 px-2 text-center">Value Concentration (Sorted)</h3>
+                    <div id="freqChart" class="w-full flex-grow"></div>
+                </div>
+
+                <!-- Distribution Analysis Chart -->
+                <div class="glass-card p-4 min-h-[350px] flex flex-col border-indigo-500/30">
+                    <h3 class="text-sm font-medium text-slate-400 uppercase tracking-widest mb-2 px-2 text-center">Distribution Profile (Ordered)</h3>
+                    <div id="distChart" class="w-full flex-grow"></div>
+                </div>
             </div>
         </div>
     </main>
@@ -236,15 +244,22 @@
             return { upper, lower };
         }
 
-        function getFrequencyData(data) {
+        function getFrequencyData(data, sortByKey = false) {
             const counts = {};
             data.forEach(val => {
                 counts[val] = (counts[val] || 0) + 1;
             });
-            const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            let entries = Object.entries(counts);
+            if (sortByKey) {
+                // Sort by Thickness Value (Numeric)
+                entries.sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+            } else {
+                // Sort by Count (Frequency)
+                entries.sort((a, b) => b[1] - a[1]);
+            }
             return {
-                x: sortedEntries.map(e => e[0]),
-                y: sortedEntries.map(e => e[1])
+                x: entries.map(e => e[0]),
+                y: entries.map(e => e[1])
             };
         }
 
@@ -268,7 +283,6 @@
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
             };
 
-            // Temporarily show a loading state
             const btn = document.querySelector('button[onclick="downloadPDF()"]');
             const originalText = btn.innerHTML;
             btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processing...';
@@ -304,7 +318,10 @@
             
             const movingAverage = calculateMA(thicknessData, maWindow);
             const envelopes = calculateEnvelopes(thicknessData, maWindow);
-            const freq = getFrequencyData(thicknessData);
+            
+            // Data for charts
+            const freqSortedByCount = getFrequencyData(thicknessData, false);
+            const freqSortedByValue = getFrequencyData(thicknessData, true);
 
             const rawTrace = {
                 x: distanceData,
@@ -363,12 +380,13 @@
                 modeBarButtonsToRemove: ['select2d', 'lasso2d']
             });
 
+            // Frequency Chart (Sorted by Count)
             const freqTrace = {
-                x: freq.x,
-                y: freq.y,
+                x: freqSortedByCount.x,
+                y: freqSortedByCount.y,
                 type: 'bar',
                 marker: {
-                    color: freq.y,
+                    color: freqSortedByCount.y,
                     colorscale: [[0, '#312e81'], [1, '#818cf8']],
                 },
                 hovertemplate: 'Val: %{x}mm<br>Freq: %{y}<extra></extra>'
@@ -384,7 +402,89 @@
             };
 
             Plotly.newPlot('freqChart', [freqTrace], freqLayout, { responsive: true, displaylogo: false });
+
+            // Distribution Chart (Sorted by Value + Curve)
+            const distBarTrace = {
+                x: freqSortedByValue.x,
+                y: freqSortedByValue.y,
+                type: 'bar',
+                name: 'Frequency',
+                marker: { color: 'rgba(16, 185, 129, 0.3)' },
+                hovertemplate: 'Val: %{x}mm<br>Freq: %{y}<extra></extra>'
+            };
+
+            const distLineTrace = {
+                x: freqSortedByValue.x,
+                y: freqSortedByValue.y,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Distribution Curve',
+                line: { color: '#10b981', width: 2, shape: 'spline' },
+                hoverinfo: 'skip'
+            };
+
+            const distLayout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: { title: 'Thickness (mm)', type: 'category', gridcolor: '#1e293b', color: '#64748b' },
+                yaxis: { title: 'Count', gridcolor: '#1e293b', color: '#64748b' },
+                margin: { t: 10, r: 10, l: 40, b: 40 },
+                legend: { visible: false },
+                template: 'plotly_dark'
+            };
+
+            Plotly.newPlot('distChart', [distBarTrace, distLineTrace], distLayout, { responsive: true, displaylogo: false });
         }
+
+        function handleUpdates() {
+            const maWindow = parseInt(document.getElementById('maSlider').value);
+            document.getElementById('maValue').innerText = maWindow;
+            
+            const chartMode = document.getElementById('chartType').value;
+            const movingAverage = calculateMA(thicknessData, maWindow);
+            const envelopes = calculateEnvelopes(thicknessData, maWindow);
+
+            Plotly.restyle('mainChart', {
+                mode: chartMode === 'line' ? 'lines+markers' : chartMode,
+                type: chartMode === 'bar' ? 'bar' : 'scatter',
+                visible: document.getElementById('toggleRaw').checked
+            }, [0]);
+
+            Plotly.restyle('mainChart', {
+                y: [movingAverage],
+                visible: document.getElementById('toggleMA').checked
+            }, [1]);
+
+            Plotly.restyle('mainChart', {
+                y: [envelopes.upper],
+                visible: document.getElementById('toggleEnvelopes').checked
+            }, [2]);
+
+            Plotly.restyle('mainChart', {
+                y: [envelopes.lower],
+                visible: document.getElementById('toggleEnvelopes').checked
+            }, [3]);
+        }
+
+        function resetDashboard() {
+            document.getElementById('maSlider').value = 10;
+            document.getElementById('chartType').value = 'line';
+            document.getElementById('toggleRaw').checked = true;
+            document.getElementById('toggleMA').checked = true;
+            document.getElementById('toggleEnvelopes').checked = true;
+            initCharts();
+        }
+
+        document.getElementById('maSlider').addEventListener('input', handleUpdates);
+        document.getElementById('chartType').addEventListener('change', handleUpdates);
+        document.getElementById('toggleRaw').addEventListener('change', handleUpdates);
+        document.getElementById('toggleMA').addEventListener('change', handleUpdates);
+        document.getElementById('toggleEnvelopes').addEventListener('change', handleUpdates);
+
+        window.onload = initCharts;
+    </script>
+</body>
+</html>
 
         function handleUpdates() {
             const maWindow = parseInt(document.getElementById('maSlider').value);
