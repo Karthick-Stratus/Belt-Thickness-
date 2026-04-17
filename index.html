@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belt Thickness Dashboard | Manufacturing Analytics</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #f1f5f9;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #818cf8, #2dd4bf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #818cf8;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+        /* Plotly Custom Styling */
+        .js-plotly-plot .plotly .modebar {
+            top: 2px !important;
+            right: 2px !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!-- Header Section -->
+    <header class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-bold gradient-text">Belt Thickness Dashboard</h1>
+            <p class="text-slate-400 mt-1">Real-time Manufacturing Quality Analytics</p>
+        </div>
+        <div class="flex gap-4">
+            <button onclick="resetDashboard()" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all duration-200">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                <span>Reset View</span>
+            </button>
+            <a href="https://github.com/Karthick-Stratus/Belt-Thickness-" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-all duration-200">
+                <i data-lucide="github" class="w-4 h-4"></i>
+                <span>Repository</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Controls Sidebar -->
+        <aside class="lg:col-span-1 space-y-6">
+            <div class="glass-card p-6">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-5 h-5 text-indigo-400"></i>
+                    Control Panel
+                </h2>
+                
+                <!-- Chart Type Selector -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Primary Chart Type</label>
+                    <select id="chartType" class="w-full bg-slate-900 border border-slate-700 rounded-md p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="line">Line Chart (Standard)</option>
+                        <option value="markers">Scatter Plot</option>
+                        <option value="bar">Bar Chart</option>
+                    </select>
+                </div>
+
+                <!-- Moving Average Slider -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-slate-400">MA Window Size</label>
+                        <span id="maValue" class="text-indigo-400 font-bold">10</span>
+                    </div>
+                    <input type="range" id="maSlider" min="2" max="50" value="10" 
+                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer custom-slider">
+                </div>
+
+                <!-- Visibility Toggles -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Layers Toggle</label>
+                    <label class="flex items-center cursor-pointer group">
+                        <input type="checkbox" id="toggleRaw" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 relative"></div>
+                        <span class="ml-3 text-sm font-medium group-hover:text-indigo-400 transition-colors">Raw Data</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer group">
+                        <input type="checkbox" id="toggleMA" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+                        <span class="ml-3 text-sm font-medium group-hover:text-emerald-400 transition-colors">Moving Average</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer group">
+                        <input type="checkbox" id="toggleEnvelopes" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500 relative"></div>
+                        <span class="ml-3 text-sm font-medium group-hover:text-rose-400 transition-colors">Envelope Curves</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Stats Summary -->
+            <div class="glass-card p-6">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-400"></i>
+                    Quick Stats
+                </h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Samples</p>
+                        <p id="statTotal" class="text-xl font-bold text-white">0</p>
+                    </div>
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Avg</p>
+                        <p id="statAvg" class="text-xl font-bold text-white">0.000</p>
+                    </div>
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Max</p>
+                        <p id="statMax" class="text-xl font-bold text-white">0.000</p>
+                    </div>
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Min</p>
+                        <p id="statMin" class="text-xl font-bold text-white">0.000</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Charts Main View -->
+        <div class="lg:col-span-3 space-y-6">
+            <!-- Run Chart -->
+            <div class="glass-card p-4 h-[500px]">
+                <div id="mainChart" class="w-full h-full"></div>
+            </div>
+            
+            <!-- Frequency Chart -->
+            <div class="glass-card p-4 h-[400px]">
+                <div id="freqChart" class="w-full h-full"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="max-w-7xl mx-auto mt-12 pb-8 text-center text-slate-500 text-sm border-t border-slate-800 pt-8">
+        <p>&copy; 2024 Stratus Automation | Manufacturing Excellence Dashboard</p>
+    </footer>
+
+    <script>
+        // --- Core Data Payload ---
+        const thicknessData = [1.084, 1.078, 1.101, 1.09, 1.087, 1.082, 1.096, 1.074, 1.065, 1.082, 1.062, 1.083, 1.094, 1.103, 1.058, 1.101, 1.053, 1.099, 1.075, 1.092, 1.104, 1.101, 1.101, 1.071, 1.095, 1.085, 1.067, 1.126, 1.094, 1.093, 1.071, 1.075, 1.069, 1.082, 1.098, 1.089, 1.089, 1.071, 1.088, 1.061, 1.082, 1.069, 1.086, 1.085, 1.05, 1.094, 1.062, 1.089, 1.062, 1.079, 1.079, 1.062, 1.089, 1.05, 1.083, 1.062, 1.071, 1.087, 1.055, 1.085, 1.101, 1.079, 1.075, 1.07, 1.095, 1.053, 1.088, 1.078, 1.061, 1.09, 1.093, 1.045, 1.092, 1.077, 1.088, 1.092, 1.036, 1.095, 1.079, 1.089, 1.074, 1.069, 1.09, 1.078, 1.088, 1.062, 1.073, 1.083, 1.084, 1.094, 1.076, 1.061, 1.056, 1.083, 1.102, 1.089, 1.086, 1.085, 1.086, 1.093, 1.043, 1.088, 1.091, 1.085, 1.103, 1.071, 1.093, 1.069, 1.083, 1.06, 1.079, 1.122, 1.088, 1.1, 1.059, 1.073, 1.06, 1.09, 1.083, 1.09, 1.085, 1.071, 1.082, 1.082, 1.094, 1.094, 1.069, 1.109, 1.059, 1.097, 1.071, 1.089, 1.094, 1.084, 1.082, 1.089, 1.101, 1.071, 1.084, 1.063, 1.069, 1.07, 1.087, 1.082, 1.062, 1.07, 1.077, 1.071, 1.069, 1.065, 1.09, 1.062, 1.087, 1.057, 1.084, 1.06, 1.079, 1.098, 1.051, 1.085, 1.058, 1.09, 1.08, 1.079, 1.09, 1.039, 1.106];
+
+        const sampleNumbers = thicknessData.map((_, i) => i + 1);
+
+        // --- Helper Functions ---
+        
+        function calculateMA(data, window) {
+            let result = [];
+            for (let i = 0; i < data.length; i++) {
+                let start = Math.max(0, i - window + 1);
+                let subset = data.slice(start, i + 1);
+                let avg = subset.reduce((a, b) => a + b) / subset.length;
+                result.push(avg);
+            }
+            return result;
+        }
+
+        function calculateEnvelopes(data, window) {
+            let upper = [];
+            let lower = [];
+            for (let i = 0; i < data.length; i++) {
+                let start = Math.max(0, i - window + 1);
+                let subset = data.slice(start, i + 1);
+                upper.push(Math.max(...subset));
+                lower.push(Math.min(...subset));
+            }
+            return { upper, lower };
+        }
+
+        function getFrequencyData(data) {
+            const counts = {};
+            data.forEach(val => {
+                counts[val] = (counts[val] || 0) + 1;
+            });
+            // Sort by count descending
+            const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            return {
+                x: sortedEntries.map(e => e[0]),
+                y: sortedEntries.map(e => e[1])
+            };
+        }
+
+        // --- UI Update logic ---
+        
+        function updateStats() {
+            document.getElementById('statTotal').innerText = thicknessData.length;
+            document.getElementById('statAvg').innerText = (thicknessData.reduce((a, b) => a + b) / thicknessData.length).toFixed(3);
+            document.getElementById('statMax').innerText = Math.max(...thicknessData).toFixed(3);
+            document.getElementById('statMin').innerText = Math.min(...thicknessData).toFixed(3);
+        }
+
+        // --- Chart Initialization ---
+
+        function initCharts() {
+            lucide.createIcons();
+            updateStats();
+
+            const maWindow = parseInt(document.getElementById('maSlider').value);
+            const chartMode = document.getElementById('chartType').value;
+            
+            const movingAverage = calculateMA(thicknessData, maWindow);
+            const envelopes = calculateEnvelopes(thicknessData, maWindow);
+            const freq = getFrequencyData(thicknessData);
+
+            // Main Run Chart Traces
+            const rawTrace = {
+                x: sampleNumbers,
+                y: thicknessData,
+                mode: chartMode === 'line' ? 'lines+markers' : chartMode,
+                type: chartMode === 'bar' ? 'bar' : 'scatter',
+                name: 'Raw Thickness',
+                line: { color: '#818cf8', width: 2 },
+                marker: { color: '#818cf8', size: 4 },
+                visible: document.getElementById('toggleRaw').checked
+            };
+
+            const maTrace = {
+                x: sampleNumbers,
+                y: movingAverage,
+                mode: 'lines',
+                name: `Trend (${maWindow}-pt MA)`,
+                line: { color: '#10b981', width: 3, shape: 'spline' },
+                visible: document.getElementById('toggleMA').checked
+            };
+
+            const upperTrace = {
+                x: sampleNumbers,
+                y: envelopes.upper,
+                mode: 'lines',
+                name: 'Upper Envelope',
+                line: { color: '#f43f5e', width: 1, dash: 'dash' },
+                visible: document.getElementById('toggleEnvelopes').checked
+            };
+
+            const lowerTrace = {
+                x: sampleNumbers,
+                y: envelopes.lower,
+                mode: 'lines',
+                name: 'Lower Envelope',
+                line: { color: '#f43f5e', width: 1, dash: 'dash' },
+                visible: document.getElementById('toggleEnvelopes').checked,
+                fill: 'tonexty',
+                fillcolor: 'rgba(244, 63, 94, 0.05)'
+            };
+
+            const mainLayout = {
+                title: { text: 'Belt Thickness Run Chart', font: { color: '#f1f5f9' } },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: { title: 'Sample Number', gridcolor: '#334155', color: '#94a3b8' },
+                yaxis: { title: 'Thickness (mm)', gridcolor: '#334155', color: '#94a3b8' },
+                legend: { font: { color: '#f1f5f9' }, orientation: 'h', y: -0.2 },
+                margin: { t: 40, r: 20, l: 50, b: 80 },
+                hovermode: 'x unified',
+                template: 'plotly_dark'
+            };
+
+            Plotly.newPlot('mainChart', [rawTrace, maTrace, upperTrace, lowerTrace], mainLayout, { responsive: true });
+
+            // Frequency Chart
+            const freqTrace = {
+                x: freq.x,
+                y: freq.y,
+                type: 'bar',
+                marker: {
+                    color: freq.y,
+                    colorscale: 'Viridis',
+                    reversescale: true
+                },
+                hovertemplate: 'Thickness: %{x}mm<br>Count: %{y}<extra></extra>'
+            };
+
+            const freqLayout = {
+                title: { text: 'Value Frequency Analysis', font: { color: '#f1f5f9' } },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: { title: 'Thickness Value', type: 'category', gridcolor: '#334155', color: '#94a3b8' },
+                yaxis: { title: 'Frequency', gridcolor: '#334155', color: '#94a3b8' },
+                margin: { t: 40, r: 20, l: 50, b: 60 },
+                template: 'plotly_dark'
+            };
+
+            Plotly.newPlot('freqChart', [freqTrace], freqLayout, { responsive: true });
+        }
+
+        // --- Event Listeners ---
+
+        function handleUpdates() {
+            const maWindow = parseInt(document.getElementById('maSlider').value);
+            document.getElementById('maValue').innerText = maWindow;
+            
+            const chartMode = document.getElementById('chartType').value;
+            const movingAverage = calculateMA(thicknessData, maWindow);
+            const envelopes = calculateEnvelopes(thicknessData, maWindow);
+
+            const updateRaw = {
+                mode: chartMode === 'line' ? 'lines+markers' : chartMode,
+                type: chartMode === 'bar' ? 'bar' : 'scatter',
+                visible: document.getElementById('toggleRaw').checked
+            };
+
+            const updateMA = {
+                y: [movingAverage],
+                name: `Trend (${maWindow}-pt MA)`,
+                visible: document.getElementById('toggleMA').checked
+            };
+
+            const updateUpper = {
+                y: [envelopes.upper],
+                visible: document.getElementById('toggleEnvelopes').checked
+            };
+
+            const updateLower = {
+                y: [envelopes.lower],
+                visible: document.getElementById('toggleEnvelopes').checked
+            };
+
+            // Restyle/Relayout for efficiency
+            Plotly.restyle('mainChart', updateRaw, [0]);
+            Plotly.restyle('mainChart', updateMA, [1]);
+            Plotly.restyle('mainChart', updateUpper, [2]);
+            Plotly.restyle('mainChart', updateLower, [3]);
+        }
+
+        function resetDashboard() {
+            document.getElementById('maSlider').value = 10;
+            document.getElementById('chartType').value = 'line';
+            document.getElementById('toggleRaw').checked = true;
+            document.getElementById('toggleMA').checked = true;
+            document.getElementById('toggleEnvelopes').checked = true;
+            
+            initCharts();
+            // Reset view to default zoom
+            Plotly.relayout('mainChart', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+            Plotly.relayout('freqChart', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+        }
+
+        document.getElementById('maSlider').addEventListener('input', handleUpdates);
+        document.getElementById('chartType').addEventListener('change', handleUpdates);
+        document.getElementById('toggleRaw').addEventListener('change', handleUpdates);
+        document.getElementById('toggleMA').addEventListener('change', handleUpdates);
+        document.getElementById('toggleEnvelopes').addEventListener('change', handleUpdates);
+
+        // --- Initial Load ---
+        window.onload = initCharts;
+
+    </script>
+</body>
+</html>
